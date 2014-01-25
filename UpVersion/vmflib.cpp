@@ -95,6 +95,9 @@ unsigned int aggregateKVStack(KVRef* kvstack, unsigned int kvsp) {
 	return kvbp;
 }
 
+// Given a KVfile read into a buffer with a specified size, return a KVNode that is the root of a tree loaded from that buffer.
+// This is generally a bunch of parsing code built around pushing stuff it reads onto a stack.
+// Is pretty fast, but could be faster.
 KVNode* readKV(unsigned char* buf, unsigned int size) {
 	unsigned int index = 0;
 	unsigned int numkeys = 0;
@@ -174,6 +177,15 @@ void printKVInternal(KVNode* kv, unsigned int numtabs) {
 	}
 }
 
+// Cleaning up properly is good form, so let's do it.
 void freeKV(KVNode* kv) {
-	//TODO: Add this
+	if((kv->flags & KV_ARRAY) == 0) {
+		free(kv);
+	} else {
+		for(unsigned int i=0;i<kv->numchildren;i++) {
+			freeKV(kv->val.children[i]);
+		}
+		free(kv->val.children);
+		free(kv);
+	}
 }

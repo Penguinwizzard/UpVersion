@@ -3,7 +3,6 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-
 struct KVNode_t;
 struct KVRef_t;
 union KVNodeValue_t;
@@ -22,21 +21,22 @@ union KVRefValue_t{
 	unsigned char* str;
 	KVNode *asKVNode;
 };
-
+//KVNodes are for the KV Tree
 struct KVNode_t {
 	int flags;
 	unsigned int numchildren;
 	unsigned char* key;
 	KVNodeValue val;
 };
-
+//KVRefs are for the KVStack
 struct KVRef_t {
 	unsigned char* key;
 	KVRefValue val;
 	int flags;
 };
 
-#define KV_ARRAY 1
+//KV flags
+#define KV_ARRAY 1 //Is this KVNode an array?
 
 KVNode* readKV(unsigned char* buf, unsigned int size);
 void freeKV(KVNode* kv);
