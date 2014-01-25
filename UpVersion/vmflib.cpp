@@ -1,5 +1,10 @@
 #include "vmflib.h"
 
+/*
+ * This section is just random char* functions; they're designed to make traversing all this stuff decently fast and easy.
+ * There are probably significant speed improvements to be found in making these better.
+ */
+
 //Skip whitespace
 unsigned char nextnonwhitespace(unsigned char* buf, unsigned int* index, unsigned int size) {
 	while(*index < size && (buf[*index]==' '||buf[*index]=='\n'||buf[*index]=='\t'||buf[*index]=='\r'||buf[*index]=='\0')) {
@@ -24,6 +29,9 @@ void toNextValid(unsigned char* buf, unsigned int* index, unsigned int size) {
 	}
 }
 
+//grab a pointer to the word currently at buf[*index]
+//this usually returns buf+*index or buf+*index+1
+//Also puts a null character at the end of the string
 unsigned char* getCurrentString(unsigned char* buf, unsigned int* index) {
 	unsigned int startindex = *index;
 	unsigned int locallength=0;
@@ -59,8 +67,8 @@ unsigned char* getCurrentString(unsigned char* buf, unsigned int* index) {
 	}
 }
 
+//go back and put all the things inside the array into KVNodes, and make a KVNode for the array
 unsigned int aggregateKVStack(KVRef* kvstack, unsigned int kvsp) {
-	//go back and put all the things inside the array into KVNodes, and make a KVNode for the array
 	unsigned int kvbp = kvsp;
 	while((kvstack[kvbp].flags & KV_ARRAY) == 0 || kvstack[kvbp].val.asKVNode != NULL) {
 		kvbp--;
@@ -93,7 +101,6 @@ KVNode* readKV(unsigned char* buf, unsigned int size) {
 
 	unsigned const int numrefs = 30000;
 	KVRef kvstack[numrefs];
-	memset(kvstack,0,numrefs*sizeof(KVRef));
 	unsigned int kvsp = 0;
 	kvstack[0].flags		= KV_ARRAY;
 	kvstack[0].key			= (unsigned char*)"root";
@@ -140,10 +147,15 @@ KVNode* readKV(unsigned char* buf, unsigned int size) {
 	return kvstack[kvsp].val.asKVNode;
 }
 
+// Simpler call for a more elegant codebase.
 void printKV(KVNode* kv) {
 	printKVInternal(kv, 0);
 }
 
+// Generic tree-traversing print code
+// Could be optimized somewhat by using a tab lookup table
+// But seriously, a tab lookup table?
+// That's just silly.
 void printKVInternal(KVNode* kv, unsigned int numtabs) {
 	if((kv->flags & KV_ARRAY) == 0) {
 		for(unsigned int i=0;i<numtabs;i++)

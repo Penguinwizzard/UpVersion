@@ -2,7 +2,7 @@
 #define vmflib_h
 #include <stdlib.h>
 #include <stdio.h>
-#include <string.h>
+
 
 struct KVNode_t;
 struct KVRef_t;
