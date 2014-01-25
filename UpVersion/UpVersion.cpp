@@ -1,161 +1,30 @@
-#include<stdlib.h>
-#include<stdio.h>
-#include<string.h>
-#ifndef WIN32
-#include<stdbool.h>
-#endif
-
-#define HEADER_LUMPS 64
-#define MAX_DISP_CORNER_NEIGHBORS 4
-#define OVERLAY_BSP_FACE_COUNT 64
-
-typedef struct lump_t {
-	int fileofs;
-	int filelen;
-	int version;
-	char fourCC[4];
-} lump;
-
-typedef struct vector_t {
-	float x;
-	float y;
-	float z;
-} vector;
-
-typedef struct CDispSubNeighbor_t {
-	unsigned short Neighbor;
-	unsigned char NeighborOrientation;
-	unsigned char Span;
-	unsigned char NeighborSpan;
-} CDispSubNeighbor;
-
-typedef struct CDispNeighbor_t {
-	CDispSubNeighbor SubNeighbors[2];
-} CDispNeighbor;
-
-typedef struct CDispCornerNeighbors_t {
-	unsigned short Neighbors[MAX_DISP_CORNER_NEIGHBORS];
-	unsigned char nNeighbors;
-} CDispCornerNeighbors;
-
-typedef struct ddispinfo_21_t {
-	vector startPos;
-	int DispVertStart;
-	int DispTriStart;
-	int power;
-	int minTess;
-	float smoothingAngle;
-	int contents;
-	unsigned short MapFace;
-	int LightmapAlphaStart;
-	int LightmapSamplePositionStart;
-	CDispNeighbor EdgeNeighbors[4];
-	CDispCornerNeighbors CornerNeighbors[4];
-	unsigned int AllowedVerts[10];
-} ddispinfo_21;
-
-typedef struct ddispinfo_23_t {
-	vector startPos;
-	int DispVertStart;
-	int DispTriStart;
-	int power;
-	int minTess;
-	float smoothingAngle;
-	int contents;
-	int m_nReferenceID; //One of the 2 new values, this one is apparently always 0
-	unsigned short MapFace;
-	int m_nAltTexInfo; //The other new value. If there's no alternate texinfo, it's -1
-	int LightmapAlphaStart;
-	int LightmapSamplePositionStart;
-	CDispNeighbor EdgeNeighbors[4];
-	CDispCornerNeighbors CornerNeighbors[4];
-	unsigned int AllowedVerts[10];
-} ddispinfo_23;
-
-typedef struct doverlay_21_t {
-	int Id;
-	short TexInfo;
-	unsigned short FaceCountAndRenderOrder;
-	int Ofaces [OVERLAY_BSP_FACE_COUNT];
-	float U[2];
-	float V[2];
-	vector UVPoints[4];
-	vector Origin;
-	vector BasisNormal;
-} doverlay_21;
-
-typedef struct doverlay_23_t {
-	int Id;
-	short TexInfo;
-	unsigned short FaceCountAndRenderOrder;
-	int Ofaces [OVERLAY_BSP_FACE_COUNT];
-	float U[2];
-	float V[2];
-	vector UVPoints[4];
-	vector Origin;
-	vector BasisNormal;
-	unsigned int flags;
-} doverlay_23;
-
-#define OVERLAY_FLAG_NOT_IN_LOW_VIOLENCE 1
-
-typedef struct dbrushside_21_t {
-	unsigned int planenum;
-	short texinfo;
-	short dispinfo;
-	short bevel;
-} dbrushside_21;
-
-typedef struct dbrushside_23_t {
-	unsigned int planenum;
-	short texinfo;
-	short dispinfo;
-	bool bevel;
-	bool thin;
-} dbrushside_23;
-
-typedef struct BSPheader_t
-{
-	int ident;
-	int version;
-	lump lumps[HEADER_LUMPS];
-	int mapRevision;
-} BSPheader;
-
-typedef struct dgamelump_t {
-	int id;
-	unsigned short flags;
-	unsigned short version;
-	int fileofs;
-	int filelen;
-} dgamelump;
-
-typedef struct dgamelumpheader_t {
-	unsigned int lumpCount;
-	dgamelump* lumps;
-} dgamelumpheader;
+#include"UpVersion.h"
 
 int main(int argc, char* argv[]) {
-	printf("UpVersion 1.0, by Penguinwizzard\n");
+	printf("UpVersion 1.1, by Penguinwizzard\n");
 	if(argc <2) {
-		printf("usage: UpVersion <bspfile>\n");
+		printf("usage: UpVersion <bspfile> [<vmffile>]\n");
 		return 0;
 	}
+
+	//Load BSP File
+	//Boilerplate
 	FILE* bsp;
 	fopen_s(&bsp,argv[1],"rb");
 	if(bsp == NULL) {
-		printf("File not found or could not be read.\n");
+		printf("BSP file not found or could not be read.\n");
 		exit(1);
 	}
 	fseek(bsp, 0, SEEK_END);
-	long fsize = ftell(bsp);
+	unsigned long fsize = (unsigned long)ftell(bsp);
 	fseek(bsp, 0, SEEK_SET);
 
-	unsigned char *buf = (unsigned char*)malloc(fsize);
+	unsigned char *buf = (unsigned char*)malloc((size_t)fsize);
 	fread(buf, fsize, 1, bsp);
 	fclose(bsp);
+
 	BSPheader* header = (BSPheader*)buf;
-	printf("File loaded, general file info:\n");
+	printf("BSP File loaded, general file info:\n");
 	printf("Sanity Check: %i ",header->ident);
 	if(header->ident==1347633750) {
 		printf("(passed)\n");
@@ -164,8 +33,33 @@ int main(int argc, char* argv[]) {
 	}
 	printf("BSP File Version: %i\n",header->version);
 	printf("Map Revision: %i\n",header->mapRevision);
+
+	//The KVNode for the vmf file, if we're given one.
+	KVNode* vmf = NULL;
+	unsigned char *vmfbuf = NULL;
+	if(argc >= 3) {
+		//Load VMF File
+		//Boilerplate
+		printf("Loading VMF File: WARNING, EXPERIMENTAL\n");
+		FILE* vmffile;
+		fopen_s(&vmffile,argv[2],"rb");
+		if(vmffile == NULL) {
+			printf("VMF file not found or could not be read.\n");
+			exit(1);
+		}
+		fseek(vmffile, 0, SEEK_END);
+		unsigned long vmfsize = (unsigned long)ftell(vmffile);
+		fseek(vmffile, 0, SEEK_SET);
+
+		vmfbuf = (unsigned char*)malloc(vmfsize);
+		fread(vmfbuf, vmfsize, 1, vmffile);
+		fclose(vmffile);
+		printf("test\n");
+		//Parse the VMF KV file so that we can use it later.
+		vmf = readKV(vmfbuf,vmfsize);
+	}
 	if(header->version==21) {
-		unsigned int newsize = fsize;
+		unsigned int newsize = fsize; //Two lumps have changed in size per entry; we have to reflect that here:
 		newsize += (header->lumps[26].filelen/(unsigned int)sizeof(ddispinfo_21))*(sizeof(ddispinfo_23)-sizeof(ddispinfo_21));
 		newsize += (header->lumps[45].filelen/(unsigned int)sizeof(doverlay_21))*(sizeof(doverlay_23)-sizeof(doverlay_21));
 		unsigned char *buf2 = (unsigned char*)malloc(newsize);
@@ -255,8 +149,8 @@ int main(int argc, char* argv[]) {
 				for(j=0;j<count;j++) {
 					dbrushside_21* old = &((*brushsides)[j]);
 					dbrushside_23* newer = &((*newbrushsides)[j]);
-					newer->bevel = (old->bevel == 1);
-					newer->thin = false;
+					newer->bevel = old->bevel;
+					newer->thin = old->thin;
 				}
 				index += newheader->lumps[i].filelen;
 			} else { //generic lump copy
@@ -269,11 +163,19 @@ int main(int argc, char* argv[]) {
 		}
 		FILE* target;
 		fopen_s(&target,argv[1],"wb");
+		if(target == NULL) {
+			printf("Error: Could not open BSP file for writing.\n");
+			exit(1);
+		}
 		fwrite(buf2, newsize, 1, target);
 		fclose(target);
 		printf("Map version changed to 23.\n");
 	} else {
 		printf("No changes made.\n");
+	}
+	if(vmfbuf != NULL) {
+		free(vmfbuf);
+		freeKV(vmf);
 	}
 	return 0;
 }
