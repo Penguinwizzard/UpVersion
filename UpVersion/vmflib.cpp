@@ -1,6 +1,7 @@
 #include "vmflib.h"
 
 /*
+ * Section 1: Base character buffer operations
  * This section is just random char* functions; they're designed to make traversing all this stuff decently fast and easy.
  * There are probably significant speed improvements to be found in making these better.
  */
@@ -28,6 +29,11 @@ void toNextValid(unsigned char* buf, unsigned int* index, unsigned int size) {
 		nextnonwhitespace(buf,index,size);
 	}
 }
+
+/*
+ * Section 2: KVTree generation
+ * This section is where the parsing happens. A buffer is passed in, and using code from Section 1, we make a tree for the file.
+ */
 
 //grab a pointer to the word currently at buf[*index]
 //this usually returns buf+*index or buf+*index+1
@@ -167,7 +173,7 @@ void printKVInternal(KVNode* kv, unsigned int numtabs) {
 	} else {
 		for(unsigned int i=0;i<numtabs;i++)
 			printf("\t");
-		printf("\"%s\" {\n",kv->key, kv->val.str);
+		printf("\"%s\" {\n",kv->key);
 		for(unsigned int i=0;i<kv->numchildren;i++) {
 			printKVInternal(kv->val.children[i],numtabs+1);
 		}
@@ -187,5 +193,114 @@ void freeKV(KVNode* kv) {
 		}
 		free(kv->val.children);
 		free(kv);
+	}
+}
+
+/*
+ * Section 3: KVTree usage stuff
+ * These are most of what programs are going to be calling. 
+ */
+
+// Check if a KVNode has a certain key-value pair inside it.
+bool hasProperty(KVNode* kv, char* key, char* value) {
+	if((kv->flags & KV_ARRAY) == 0) {
+		return false; //it's not an array, so no props.
+	} else {
+		for(unsigned int i=0;i<kv->numchildren;i++) {
+			if((kv->val.children[i]->flags & KV_ARRAY) != 0) { //Arrays can't match searches
+				continue;
+			}
+			if(strcmp((const char*)kv->val.children[i]->key,key) == 0 && strcmp((const char*)kv->val.children[i]->val.str,value) == 0) {
+				return true;
+			}
+		}
+		return false;
+	}
+}
+
+// Get a pointer to the next KVNode child that has a certain property.
+// If startafter is null, searches from the start.
+// If there are no hits, it returns null.
+KVNode* nextByProperty(KVNode* kv, KVNode* startafter, char* key, char* value) {
+	if((kv->flags & KV_ARRAY) == 0) {
+		return NULL; //it's not an array, so no props.
+	} else {
+		unsigned int i=0;
+		if(startafter != NULL) {
+			for(i=0;i<kv->numchildren;i++) {
+				if(kv->val.children[i] == startafter) {
+					i++;
+					break;
+				}
+			}
+		}
+		for(;i<kv->numchildren;i++) {
+			if((kv->val.children[i]->flags & KV_ARRAY) == 0) { //Arrays can't match searches
+				continue;
+			}
+			if(hasProperty(kv->val.children[i],key,value)) {
+				return kv->val.children[i];
+			}
+		}
+		return NULL;
+	}
+}
+// Get a pointer to the next KVNode child that has a certain property.
+// If startafter is null, searches from the start.
+// If there are no hits, it returns null.
+KVNode* nextByKey(KVNode* kv, KVNode* startafter, char* key) {
+	if((kv->flags & KV_ARRAY) == 0) {
+		return NULL; //it's not an array, so no props.
+	} else {
+		unsigned int i=0;
+		if(startafter != NULL) {
+			for(i=0;i<kv->numchildren;i++) {
+				if(kv->val.children[i] == startafter) {
+					i++;
+					break;
+				}
+			}
+		}
+		for(;i<kv->numchildren;i++) {
+			if(strcmp((const char*)kv->val.children[i]->key,key)==0) {
+				return kv->val.children[i];
+			}
+		}
+		return NULL;
+	}
+}
+// Get a pointer to the string value 
+const unsigned char* getValue(KVNode* kv, char* key) {
+	if((kv->flags & KV_ARRAY) == 0) {
+		return NULL; //it's not an array, so no props.
+	} else {
+		for(unsigned int i=0;i<kv->numchildren;i++) {
+			if(strcmp((const char*)kv->val.children[i]->key,key)==0) {
+				return kv->val.children[i]->val.str;
+			}
+		}
+		return NULL;
+	}
+}
+
+// Simpler call for a more elegant codebase.
+void checkKV(KVNode* kv) {
+	checkKVInternal(kv, 0);
+}
+
+// Generic tree-traversing check code
+// Could be optimized somewhat by using a tab lookup table
+// But seriously, a tab lookup table?
+// That's just silly.
+void checkKVInternal(KVNode* kv, unsigned int numtabs) {
+	if((kv->flags & KV_ARRAY) == 0) {
+		if(kv->key==NULL || kv->val.str==NULL)
+			printf("\"%s\" \"%s\"\n",kv->key, kv->val.str);
+	} else {
+		if(kv->key==NULL || kv->val.str==NULL)
+			printf("\"%s\" {\n",kv->key);
+		for(unsigned int i=0;i<kv->numchildren;i++) {
+			checkKVInternal(kv->val.children[i],numtabs+1);
+		}
 	}
 }

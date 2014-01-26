@@ -2,6 +2,7 @@
 #define vmflib_h
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 
 struct KVNode_t;
 struct KVRef_t;
@@ -38,9 +39,16 @@ struct KVRef_t {
 //KV flags
 #define KV_ARRAY 1 //Is this KVNode an array?
 
+//Main functions
 KVNode* readKV(unsigned char* buf, unsigned int size);
 void freeKV(KVNode* kv);
 void printKV(KVNode* kv);
 void printKVInternal(KVNode* kv, unsigned int numtabs);
 
+bool hasProperty(KVNode* kv, char* key, char* value);
+KVNode* nextByProperty(KVNode* kv, KVNode* startafter, char* key, char* value);
+KVNode* nextByKey(KVNode* kv, KVNode* startafter, char* key);
+const unsigned char* getValue(KVNode* kv, char* key);
+void checkKV(KVNode* kv);
+void checkKVInternal(KVNode* kv, unsigned int numtabs);
 #endif

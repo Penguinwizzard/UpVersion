@@ -3,6 +3,9 @@
 #include<stdlib.h>
 #include<stdio.h>
 #include<string.h>
+#include<limits.h>
+#include<float.h>
+#include<math.h>
 #include"vmflib.h"
 #ifndef WIN32
 #include<stdbool.h>

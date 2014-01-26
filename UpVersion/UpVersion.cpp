@@ -1,5 +1,22 @@
 #include"UpVersion.h"
 
+unsigned long load_file(unsigned char** buf, char* fname, char* opts, char* errmsg) {
+	FILE* file;
+	fopen_s(&file,fname,opts);
+	if(file == NULL) {
+		printf("%s",errmsg);
+		exit(1);
+	}
+	fseek(file, 0, SEEK_END);
+	unsigned long fsize = (unsigned long)ftell(file);
+	fseek(file, 0, SEEK_SET);
+
+	(*buf) = (unsigned char*)malloc((size_t)fsize);
+	fread(*buf, fsize, 1, file);
+	fclose(file);
+	return fsize;
+}
+
 int main(int argc, char* argv[]) {
 	printf("UpVersion 1.1, by Penguinwizzard\n");
 	if(argc <2) {
@@ -9,27 +26,17 @@ int main(int argc, char* argv[]) {
 
 	//Load BSP File
 	//Boilerplate
-	FILE* bsp;
-	fopen_s(&bsp,argv[1],"rb");
-	if(bsp == NULL) {
-		printf("BSP file not found or could not be read.\n");
-		exit(1);
-	}
-	fseek(bsp, 0, SEEK_END);
-	unsigned long fsize = (unsigned long)ftell(bsp);
-	fseek(bsp, 0, SEEK_SET);
-
-	unsigned char *buf = (unsigned char*)malloc((size_t)fsize);
-	fread(buf, fsize, 1, bsp);
-	fclose(bsp);
+	unsigned char *buf = NULL;
+	unsigned long fsize = load_file(&buf, argv[1],"rb","BSP file not found or could not be read.\n");
 
 	BSPheader* header = (BSPheader*)buf;
 	printf("BSP File loaded, general file info:\n");
 	printf("Sanity Check: %i ",header->ident);
-	if(header->ident==1347633750) {
+	if(header->ident==1347633750) { //VBSP, in int form because we're lazy (and this serves as an endianness check)
 		printf("(passed)\n");
 	} else {
 		printf("(failed)\n");
+		exit(1); //Not going to try to do anything to the file if it doesn't pass the sanity check, since we might do serious damage.
 	}
 	printf("BSP File Version: %i\n",header->version);
 	printf("Map Revision: %i\n",header->mapRevision);
@@ -39,24 +46,110 @@ int main(int argc, char* argv[]) {
 	unsigned char *vmfbuf = NULL;
 	if(argc >= 3) {
 		//Load VMF File
-		//Boilerplate
 		printf("Loading VMF File: WARNING, EXPERIMENTAL\n");
-		FILE* vmffile;
-		fopen_s(&vmffile,argv[2],"rb");
-		if(vmffile == NULL) {
-			printf("VMF file not found or could not be read.\n");
-			exit(1);
-		}
-		fseek(vmffile, 0, SEEK_END);
-		unsigned long vmfsize = (unsigned long)ftell(vmffile);
-		fseek(vmffile, 0, SEEK_SET);
-
-		vmfbuf = (unsigned char*)malloc(vmfsize);
-		fread(vmfbuf, vmfsize, 1, vmffile);
-		fclose(vmffile);
-		printf("test\n");
+		unsigned long vmfsize = load_file(&vmfbuf,argv[2],"rb","VMF file not found or could not be read.\n");
+		printf("VMF Size: %u\n",vmfsize);
 		//Parse the VMF KV file so that we can use it later.
 		vmf = readKV(vmfbuf,vmfsize);
+	}
+
+	//Build list of overlays
+	if(vmf != NULL) {
+		unsigned int count=0;
+		KVNode* overlay = NULL;
+		while(overlay = nextByProperty(vmf,overlay,"classname","info_overlay")) {
+			count++;
+		}
+		printf("%u overlays found\n",count);
+		
+	}
+	//Build GNV
+	if(vmf != NULL) {
+		unsigned int count=0;
+		//Check that it's a properly formed bsp
+		KVNode* world = nextByKey(vmf,NULL,"world");
+		if(world == NULL) {
+			printf("VMF File does not have world node, exiting...");
+			printKV(vmf);
+			exit(1);
+		}
+		//We're going to do this by marking every TOOLS/TOOLSSKIP surface point as an invalid cell.
+		//To do this, we're first going to do a dry run to figure out how many of these points there are.
+		KVNode* solid = NULL;
+		while(solid = nextByKey(world,solid,"solid")) {
+			KVNode* side = NULL;
+			while(side = nextByKey(solid,side,"side")) {
+				if(hasProperty(side,"material","TOOLS/TOOLSSKIP")) {
+					count++;
+				}
+			}
+		}
+		printf("%u toolsskip surfaces found\n",count);
+		// 3 points per surface
+		vector* points = (vector*)malloc(count*3*sizeof(vector));
+		unsigned int pi = 0;
+		//Now for the parsing pass
+		float minx=FLT_MAX;
+		float maxx=FLT_MIN;
+		float miny=FLT_MAX;
+		float maxy=FLT_MIN;
+		//We're going to go through and parse all the points into a nice big array.
+		solid = NULL;
+		while(solid = nextByKey(world,solid,"solid")) {
+			KVNode* side = NULL;
+			while(side = nextByKey(solid,side,"side")) {
+				if(hasProperty(side,"material","TOOLS/TOOLSSKIP")) {
+					const unsigned char* val = getValue(side,"plane");
+					if(val==NULL) //Really shouldn't happen
+						continue;
+					float a,b,c,d,e,f,g,h,i;
+					sscanf((const char*)val," ( %f %f %f ) ( %f %f %f ) ( %f %f %f ) ",&a,&b,&c,&d,&e,&f,&g,&h,&i);
+					if(a < minx) minx = a;
+					if(a > maxx) maxx = a;
+					if(b < miny) miny = b;
+					if(b > maxy) maxy = b;
+					points[pi  ].x = a;
+					points[pi  ].y = b;
+					points[pi++].z = c;
+					if(d < minx) minx = d;
+					if(d > maxx) maxx = d;
+					if(e < miny) miny = e;
+					if(e > maxy) maxy = e;
+					points[pi  ].x = d;
+					points[pi  ].y = e;
+					points[pi++].z = f;
+					if(g < minx) minx = g;
+					if(g > maxx) maxx = g;
+					if(h < miny) miny = h;
+					if(h > maxy) maxy = h;
+					points[pi  ].x = g;
+					points[pi  ].y = h;
+					points[pi++].z = i;
+				}
+			}
+		}
+		//Now we make the navigation image, and so on
+		int cellmaxx = floorf(maxx/64);
+		int cellminx = floorf(minx/64);
+		int cellmaxy = floorf(maxy/64);
+		int cellminy = floorf(miny/64);
+		int width = cellmaxx-cellminx+1;
+		int height = cellmaxy-cellminy+1;
+		printf("GNV Info:\n");
+		printf("%i %i %i %i %i %i\n",cellminx, cellmaxx, cellminy, cellmaxy, width, height);
+		bool *pbm = (bool*)malloc(height*width*sizeof(bool));
+		memset(pbm,0,height*width*sizeof(bool));
+		for(unsigned int i=0;i<count*3;i++) {
+			pbm[(((int)floorf(points[i].x/64))-cellminx)+(cellmaxy - (int)floorf(points[i].y/64))*width] = true;
+		}
+		for(int h=0;h<height;h++) {
+			for(int w=0;w<width;w++) {
+				printf("%c ",(pbm[w+h*width])?'1':'0');
+			}
+			printf("\n");
+		}
+		free(pbm);
+		free(points);
 	}
 	if(header->version==21) {
 		unsigned int newsize = fsize; //Two lumps have changed in size per entry; we have to reflect that here:
@@ -128,12 +221,14 @@ int main(int argc, char* argv[]) {
 				doverlay_21 (*overlays)[] = (doverlay_21 (*)[])(buf+header->lumps[i].fileofs);
 				doverlay_23 (*newoverlays)[] = (doverlay_23 (*)[])(buf2+newheader->lumps[i].fileofs);
 				unsigned int j;
+				printf("%i %i\n",count,header->lumps[i].filelen);
 				for(j=0;j<count;j++) {
 					doverlay_21* old = &((*overlays)[j]);
 					doverlay_23* newer = &((*newoverlays)[j]);
 					memcpy(newer,old,sizeof(doverlay_21));
 					newer->flags = 0;   //We don't support the only known flag, LOW_VIOLENCE_DISABLED, just yet;
 										//this is a feature that's coming though.
+					printf("%i %f %f %f\n",old->Id, newer->Origin.x, newer->Origin.y, newer->Origin.z);
 				}
 				index += newheader->lumps[i].filelen;
 			} else if (i==19) { //brushside
@@ -174,8 +269,9 @@ int main(int argc, char* argv[]) {
 		printf("No changes made.\n");
 	}
 	if(vmfbuf != NULL) {
-		free(vmfbuf);
+		printf("Cleaning up...\n");
 		freeKV(vmf);
+		free(vmfbuf);
 	}
 	return 0;
 }
