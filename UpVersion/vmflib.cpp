@@ -146,10 +146,10 @@ KVNode* readKV(unsigned char* buf, unsigned int size) {
 		}
 		toNextValid(buf,&index,size);
 	}
-	printf("Number of total keys: %u\n",numkeys);
+	printf("\tNumber of total keys: %u\n",numkeys);
 	kvsp = aggregateKVStack(kvstack,kvsp);
 	if(kvsp != 0) {
-		printf("Error Reading KVFile: Imbalanced braces!");
+		printf("\tError Reading KVFile: Imbalanced braces!");
 		exit(1);
 	}
 	//printKV(kvstack[kvsp].val.asKVNode);
@@ -281,6 +281,26 @@ const unsigned char* getValue(KVNode* kv, char* key) {
 		}
 		return NULL;
 	}
+}
+
+vector* getValueVector(KVNode* kv, char* key) {
+	const unsigned char* str = getValue(kv,key);
+	vector* ret = (vector*)malloc(sizeof(vector));
+	if(str == NULL) {
+		printf("Warning: Tried to get value for non-existant KV: %s -> %s\n",kv->key,key);
+		ret->x=0.0f;
+		ret->y=0.0f;
+		ret->z=0.0f;
+	} else {
+		int check = sscanf((const char*)str,"%f %f %f",&(ret->x),&(ret->y),(&ret->z));
+		if(check != 3) {
+			printf("Warning: Tried to convert non-vector value to vector: %s -> %s : %s\n",kv->key,key,str);
+			ret->x=0.0f;
+			ret->y=0.0f;
+			ret->z=0.0f;
+		}
+	}
+	return ret;
 }
 
 // Simpler call for a more elegant codebase.

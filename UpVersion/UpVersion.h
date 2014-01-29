@@ -23,11 +23,7 @@ typedef struct lump_t {
 	char fourCC[4];
 } lump;
 
-typedef struct vector_t {
-	float x;
-	float y;
-	float z;
-} vector;
+
 
 typedef struct CDispSubNeighbor_t {
 	unsigned short Neighbor;
@@ -105,7 +101,7 @@ typedef struct doverlay_23_t {
 	unsigned int flags;
 } doverlay_23;
 
-#define OVERLAY_FLAG_NOT_IN_LOW_VIOLENCE 1
+#define OVERLAY_FLAG_HIDE_IN_LOW_VIOLENCE 1
 
 typedef struct dbrushside_21_t {
 	unsigned int planenum;
@@ -143,5 +139,17 @@ typedef struct dgamelumpheader_t {
 	unsigned int lumpCount;
 	dgamelump* lumps;
 } dgamelumpheader;
+
+typedef struct c4_t {
+	char a;
+	char b;
+	char c;
+	char d;
+} c4;
+
+typedef union i2c_t {
+	int num;
+	c4 c;
+} i2c;
 
 #endif

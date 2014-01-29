@@ -20,7 +20,7 @@ unsigned long load_file(unsigned char** buf, char* fname, char* opts, char* errm
 int main(int argc, char* argv[]) {
 	printf("UpVersion 1.1, by Penguinwizzard\n");
 	if(argc <2) {
-		printf("usage: UpVersion <bspfile> [<vmffile>]\n");
+		printf("usage: UpVersion <bspfile> [<vmffile>] [<pbmoutput>]\n");
 		return 0;
 	}
 
@@ -31,125 +31,154 @@ int main(int argc, char* argv[]) {
 
 	BSPheader* header = (BSPheader*)buf;
 	printf("BSP File loaded, general file info:\n");
-	printf("Sanity Check: %i ",header->ident);
+	i2c a;
+	a.num=header->ident;
+	printf("\tSanity Check: %c%c%c%c ",a.c.a,a.c.b,a.c.c,a.c.d);
 	if(header->ident==1347633750) { //VBSP, in int form because we're lazy (and this serves as an endianness check)
 		printf("(passed)\n");
 	} else {
 		printf("(failed)\n");
+		printf("Error: BSP magic number is incorrect, corrupted file likely.\n");
 		exit(1); //Not going to try to do anything to the file if it doesn't pass the sanity check, since we might do serious damage.
 	}
-	printf("BSP File Version: %i\n",header->version);
-	printf("Map Revision: %i\n",header->mapRevision);
+	printf("\tBSP File Version: %i\n",header->version);
+	printf("\tMap Revision: %i\n",header->mapRevision);
 
 	//The KVNode for the vmf file, if we're given one.
 	KVNode* vmf = NULL;
 	unsigned char *vmfbuf = NULL;
 	if(argc >= 3) {
 		//Load VMF File
-		printf("Loading VMF File: WARNING, EXPERIMENTAL\n");
+		printf("Loading VMF File...\n");
 		unsigned long vmfsize = load_file(&vmfbuf,argv[2],"rb","VMF file not found or could not be read.\n");
-		printf("VMF Size: %u\n",vmfsize);
+		printf("\tVMF Size: %u\n",vmfsize);
 		//Parse the VMF KV file so that we can use it later.
 		vmf = readKV(vmfbuf,vmfsize);
 	}
 
 	//Build list of overlays
+	KVNode** vmfoverlays = NULL;
+	unsigned int numoverlays = 0;
 	if(vmf != NULL) {
 		unsigned int count=0;
 		KVNode* overlay = NULL;
 		while(overlay = nextByProperty(vmf,overlay,"classname","info_overlay")) {
 			count++;
 		}
-		printf("%u overlays found\n",count);
+		printf("\t%u overlays found\n",count);
 		
+		vmfoverlays = (KVNode**)malloc(count*sizeof(KVNode*));
+		overlay = NULL;
+		count=0;
+		while(overlay = nextByProperty(vmf,overlay,"classname","info_overlay")) {
+			vmfoverlays[count++]=overlay;
+		}
+		numoverlays = count;
 	}
-	//Build GNV
+	//Build GNV...j/k, we're building a pbm here
 	if(vmf != NULL) {
-		unsigned int count=0;
-		//Check that it's a properly formed bsp
-		KVNode* world = nextByKey(vmf,NULL,"world");
-		if(world == NULL) {
-			printf("VMF File does not have world node, exiting...");
-			printKV(vmf);
-			exit(1);
-		}
-		//We're going to do this by marking every TOOLS/TOOLSSKIP surface point as an invalid cell.
-		//To do this, we're first going to do a dry run to figure out how many of these points there are.
-		KVNode* solid = NULL;
-		while(solid = nextByKey(world,solid,"solid")) {
-			KVNode* side = NULL;
-			while(side = nextByKey(solid,side,"side")) {
-				if(hasProperty(side,"material","TOOLS/TOOLSSKIP")) {
-					count++;
+		if(argc < 4) {
+			printf("No PBM file specified for output, skipping GNV calculation...\n");
+		} else {
+			unsigned int count=0;
+			//Check that it's a properly formed bsp
+			KVNode* world = nextByKey(vmf,NULL,"world");
+			if(world == NULL) {
+				printf("VMF File does not have world node, exiting...");
+				printKV(vmf);
+				exit(1);
+			}
+			//We're going to do this by marking every TOOLS/TOOLSSKIP surface point as an invalid cell.
+			//To do this, we're first going to do a dry run to figure out how many of these points there are.
+			KVNode* solid = NULL;
+			while(solid = nextByKey(world,solid,"solid")) {
+				KVNode* side = NULL;
+				while(side = nextByKey(solid,side,"side")) {
+					if(hasProperty(side,"material","TOOLS/TOOLSSKIP")) {
+						count++;
+					}
 				}
 			}
-		}
-		printf("%u toolsskip surfaces found\n",count);
-		// 3 points per surface
-		vector* points = (vector*)malloc(count*3*sizeof(vector));
-		unsigned int pi = 0;
-		//Now for the parsing pass
-		float minx=FLT_MAX;
-		float maxx=FLT_MIN;
-		float miny=FLT_MAX;
-		float maxy=FLT_MIN;
-		//We're going to go through and parse all the points into a nice big array.
-		solid = NULL;
-		while(solid = nextByKey(world,solid,"solid")) {
-			KVNode* side = NULL;
-			while(side = nextByKey(solid,side,"side")) {
-				if(hasProperty(side,"material","TOOLS/TOOLSSKIP")) {
-					const unsigned char* val = getValue(side,"plane");
-					if(val==NULL) //Really shouldn't happen
-						continue;
-					float a,b,c,d,e,f,g,h,i;
-					sscanf((const char*)val," ( %f %f %f ) ( %f %f %f ) ( %f %f %f ) ",&a,&b,&c,&d,&e,&f,&g,&h,&i);
-					if(a < minx) minx = a;
-					if(a > maxx) maxx = a;
-					if(b < miny) miny = b;
-					if(b > maxy) maxy = b;
-					points[pi  ].x = a;
-					points[pi  ].y = b;
-					points[pi++].z = c;
-					if(d < minx) minx = d;
-					if(d > maxx) maxx = d;
-					if(e < miny) miny = e;
-					if(e > maxy) maxy = e;
-					points[pi  ].x = d;
-					points[pi  ].y = e;
-					points[pi++].z = f;
-					if(g < minx) minx = g;
-					if(g > maxx) maxx = g;
-					if(h < miny) miny = h;
-					if(h > maxy) maxy = h;
-					points[pi  ].x = g;
-					points[pi  ].y = h;
-					points[pi++].z = i;
+			printf("\t%u toolsskip surfaces found\n",count);
+			if(count == 0) {
+				printf("No TOOLSSKIP surfaces found, skipping pbm generation\n");
+			} else {
+				// 3 points per surface
+				vector* points = (vector*)malloc(count*3*sizeof(vector));
+				unsigned int pi = 0;
+				//Now for the parsing pass
+				float minx=FLT_MAX;
+				float maxx=FLT_MIN;
+				float miny=FLT_MAX;
+				float maxy=FLT_MIN;
+				//We're going to go through and parse all the points into a nice big array.
+				solid = NULL;
+				while(solid = nextByKey(world,solid,"solid")) {
+					KVNode* side = NULL;
+					while(side = nextByKey(solid,side,"side")) {
+						if(hasProperty(side,"material","TOOLS/TOOLSSKIP")) {
+							const unsigned char* val = getValue(side,"plane");
+							if(val==NULL) //Really shouldn't happen
+								continue;
+							float a,b,c,d,e,f,g,h,i;
+							sscanf((const char*)val," ( %f %f %f ) ( %f %f %f ) ( %f %f %f ) ",&a,&b,&c,&d,&e,&f,&g,&h,&i);
+							if(a < minx) minx = a;
+							if(a > maxx) maxx = a;
+							if(b < miny) miny = b;
+							if(b > maxy) maxy = b;
+							points[pi  ].x = a;
+							points[pi  ].y = b;
+							points[pi++].z = c;
+							if(d < minx) minx = d;
+							if(d > maxx) maxx = d;
+							if(e < miny) miny = e;
+							if(e > maxy) maxy = e;
+							points[pi  ].x = d;
+							points[pi  ].y = e;
+							points[pi++].z = f;
+							if(g < minx) minx = g;
+							if(g > maxx) maxx = g;
+							if(h < miny) miny = h;
+							if(h > maxy) maxy = h;
+							points[pi  ].x = g;
+							points[pi  ].y = h;
+							points[pi++].z = i;
+						}
+					}
 				}
+				//Now we make the navigation image, and so on
+				int cellmaxx = (int)floorf(maxx/64);
+				int cellminx = (int)floorf(minx/64);
+				int cellmaxy = (int)floorf(maxy/64);
+				int cellminy = (int)floorf(miny/64);
+				int width = cellmaxx-cellminx+1;
+				int height = cellmaxy-cellminy+1;
+				printf("PBM Info:\n");
+				printf("%i %i %i %i %i %i\n",cellminx, cellmaxx, cellminy, cellmaxy, width, height);
+				FILE* pbmfile;
+				fopen_s(&pbmfile,argv[3],"wb");
+				if(pbmfile == NULL) {
+					printf("Error: Could not open PBM file for writing.\n");
+					exit(1);
+				}
+				fprintf(pbmfile,"P1\n");
+				fprintf(pbmfile,"%i %i\n",width,height);
+				bool *pbm = (bool*)malloc(height*width*sizeof(bool));
+				memset(pbm,0,height*width*sizeof(bool));
+				for(unsigned int i=0;i<count*3;i++) {
+					pbm[(((int)floorf(points[i].x/64))-cellminx)+(cellmaxy - (int)floorf(points[i].y/64))*width] = true;
+				}
+				for(int h=0;h<height;h++) {
+					for(int w=0;w<width;w++) {
+						fprintf(pbmfile,"%c ",(pbm[w+h*width])?'1':'0');
+					}
+					fprintf(pbmfile,"\n");
+				}
+				fclose(pbmfile);
+				free(pbm);
+				free(points);
 			}
 		}
-		//Now we make the navigation image, and so on
-		int cellmaxx = floorf(maxx/64);
-		int cellminx = floorf(minx/64);
-		int cellmaxy = floorf(maxy/64);
-		int cellminy = floorf(miny/64);
-		int width = cellmaxx-cellminx+1;
-		int height = cellmaxy-cellminy+1;
-		printf("GNV Info:\n");
-		printf("%i %i %i %i %i %i\n",cellminx, cellmaxx, cellminy, cellmaxy, width, height);
-		bool *pbm = (bool*)malloc(height*width*sizeof(bool));
-		memset(pbm,0,height*width*sizeof(bool));
-		for(unsigned int i=0;i<count*3;i++) {
-			pbm[(((int)floorf(points[i].x/64))-cellminx)+(cellmaxy - (int)floorf(points[i].y/64))*width] = true;
-		}
-		for(int h=0;h<height;h++) {
-			for(int w=0;w<width;w++) {
-				printf("%c ",(pbm[w+h*width])?'1':'0');
-			}
-			printf("\n");
-		}
-		free(pbm);
-		free(points);
 	}
 	if(header->version==21) {
 		unsigned int newsize = fsize; //Two lumps have changed in size per entry; we have to reflect that here:
@@ -220,15 +249,33 @@ int main(int argc, char* argv[]) {
 				newheader->lumps[i].version = header->lumps[i].version;
 				doverlay_21 (*overlays)[] = (doverlay_21 (*)[])(buf+header->lumps[i].fileofs);
 				doverlay_23 (*newoverlays)[] = (doverlay_23 (*)[])(buf2+newheader->lumps[i].fileofs);
-				unsigned int j;
-				printf("%i %i\n",count,header->lumps[i].filelen);
+				unsigned int j,k;
 				for(j=0;j<count;j++) {
 					doverlay_21* old = &((*overlays)[j]);
 					doverlay_23* newer = &((*newoverlays)[j]);
 					memcpy(newer,old,sizeof(doverlay_21));
-					newer->flags = 0;   //We don't support the only known flag, LOW_VIOLENCE_DISABLED, just yet;
-										//this is a feature that's coming though.
-					printf("%i %f %f %f\n",old->Id, newer->Origin.x, newer->Origin.y, newer->Origin.z);
+					if(vmfoverlays != NULL) {
+						float goodness,bestgoodness=FLT_MAX;
+						unsigned int bestone=0;
+						for(k=0;k<count;k++) {
+							goodness = 0;
+							vector* vec = getValueVector(vmfoverlays[k],"origin");
+							goodness += fabs(vec->x-newer->Origin.x) + fabs(vec->y-newer->Origin.y) + fabs(vec->z-newer->Origin.z);
+							if(goodness < bestgoodness) {
+								bestgoodness=goodness;
+								bestone=k;
+							}
+						}
+						const unsigned char* test = NULL;
+						newer->flags = 0;
+						if(test = getValue(vmfoverlays[bestone],"hideOnLV")) {
+							if(strcmp((const char*)test,"0")!=0) {
+								newer->flags |= OVERLAY_FLAG_HIDE_IN_LOW_VIOLENCE;
+							}
+						}
+					} else {
+						newer->flags = 0;   //VBSP loses too much information to get the flags unless we have the vmf available.
+					}
 				}
 				index += newheader->lumps[i].filelen;
 			} else if (i==19) { //brushside

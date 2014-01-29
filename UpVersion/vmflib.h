@@ -13,6 +13,12 @@ typedef struct KVRef_t KVRef;
 typedef union KVNodeValue_t KVNodeValue;
 typedef union KVRefValue_t KVRefValue;
 
+typedef struct vector_t {
+	float x;
+	float y;
+	float z;
+} vector;
+
 union KVNodeValue_t{
 	unsigned char* str;
 	KVNode **children;
@@ -49,6 +55,7 @@ bool hasProperty(KVNode* kv, char* key, char* value);
 KVNode* nextByProperty(KVNode* kv, KVNode* startafter, char* key, char* value);
 KVNode* nextByKey(KVNode* kv, KVNode* startafter, char* key);
 const unsigned char* getValue(KVNode* kv, char* key);
+vector* getValueVector(KVNode* kv, char* key);
 void checkKV(KVNode* kv);
 void checkKVInternal(KVNode* kv, unsigned int numtabs);
 #endif
