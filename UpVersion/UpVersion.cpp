@@ -18,7 +18,7 @@ unsigned long load_file(unsigned char** buf, char* fname, char* opts, char* errm
 }
 
 int main(int argc, char* argv[]) {
-	printf("UpVersion 1.1, by Penguinwizzard\n");
+	printf("UpVersion 1.5, by Penguinwizzard\n");
 	if(argc <2) {
 		printf("usage: UpVersion <bspfile> [<vmffile>] [<pbmoutput>]\n");
 		return 0;
