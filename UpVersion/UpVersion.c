@@ -1,8 +1,8 @@
 #include"UpVersion.h"
 
-unsigned long load_file(unsigned char** buf, char* fname, char* opts, char* errmsg) {
+unsigned long load_file(unsigned char** buf, const char* fname, const char* opts, const char* errmsg) {
 	FILE* file;
-	fopen_s(&file,fname,opts);
+	file = fopen(fname,opts);
 	if(file == NULL) {
 		printf("%s",errmsg);
 		exit(1);
@@ -156,7 +156,7 @@ int main(int argc, char* argv[]) {
 				printf("PBM Info:\n");
 				printf("%i %i %i %i %i %i\n",cellminx, cellmaxx, cellminy, cellmaxy, width, height);
 				FILE* pbmfile;
-				fopen_s(&pbmfile,argv[3],"wb");
+				pbmfile = fopen(argv[3],"wb");
 				if(pbmfile == NULL) {
 					printf("Error: Could not open PBM file for writing.\n");
 					exit(1);
@@ -304,7 +304,7 @@ int main(int argc, char* argv[]) {
 			}
 		}
 		FILE* target;
-		fopen_s(&target,argv[1],"wb");
+		target = fopen(argv[1],"wb");
 		if(target == NULL) {
 			printf("Error: Could not open BSP file for writing.\n");
 			exit(1);

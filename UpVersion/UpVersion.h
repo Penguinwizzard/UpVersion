@@ -7,8 +7,8 @@
 #include<float.h>
 #include<math.h>
 #include"vmflib.h"
-#ifndef WIN32
-#include<stdbool.h>
+#ifndef __cplusplus
+#include <stdbool.h>
 #endif
 
 

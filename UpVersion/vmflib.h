@@ -3,6 +3,9 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#ifndef __cplusplus
+#include <stdbool.h>
+#endif
 
 struct KVNode_t;
 struct KVRef_t;

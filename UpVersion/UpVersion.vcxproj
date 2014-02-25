@@ -74,10 +74,6 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="UpVersion.cpp" />
-    <ClCompile Include="vmflib.cpp" />
-  </ItemGroup>
-  <ItemGroup>
     <ClInclude Include="resource.h" />
     <ClInclude Include="UpVersion.h" />
     <ClInclude Include="vmflib.h" />
@@ -87,6 +83,14 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="upversion_logo.ico" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="UpVersion.c">
+      <CompileAs Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">CompileAsCpp</CompileAs>
+    </ClCompile>
+    <ClCompile Include="vmflib.c">
+      <CompileAs Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">CompileAsCpp</CompileAs>
+    </ClCompile>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
