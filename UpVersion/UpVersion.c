@@ -51,18 +51,18 @@ int main(int argc, char* argv[]) {
 		//Load VMF File
 		printf("Loading VMF File...\n");
 		unsigned long vmfsize = load_file(&vmfbuf,argv[2],"rb","VMF file not found or could not be read.\n");
-		printf("\tVMF Size: %u\n",vmfsize);
+		printf("\tVMF Size: %lu\n",vmfsize);
 		//Parse the VMF KV file so that we can use it later.
 		vmf = readKV(vmfbuf,vmfsize);
 	}
 
 	//Build list of overlays
 	KVNode** vmfoverlays = NULL;
-	unsigned int numoverlays = 0;
+	//unsigned int numoverlays = 0;
 	if(vmf != NULL) {
 		unsigned int count=0;
 		KVNode* overlay = NULL;
-		while(overlay = nextByProperty(vmf,overlay,"classname","info_overlay")) {
+		while( (overlay = nextByProperty(vmf,overlay,"classname","info_overlay")) ) {
 			count++;
 		}
 		printf("\t%u overlays found\n",count);
@@ -70,10 +70,10 @@ int main(int argc, char* argv[]) {
 		vmfoverlays = (KVNode**)malloc(count*sizeof(KVNode*));
 		overlay = NULL;
 		count=0;
-		while(overlay = nextByProperty(vmf,overlay,"classname","info_overlay")) {
+		while( (overlay = nextByProperty(vmf,overlay,"classname","info_overlay")) ) {
 			vmfoverlays[count++]=overlay;
 		}
-		numoverlays = count;
+		//numoverlays = count;
 	}
 	//Build GNV...j/k, we're building a pbm here
 	if(vmf != NULL) {
@@ -91,9 +91,9 @@ int main(int argc, char* argv[]) {
 			//We're going to do this by marking every TOOLS/TOOLSSKIP surface point as an invalid cell.
 			//To do this, we're first going to do a dry run to figure out how many of these points there are.
 			KVNode* solid = NULL;
-			while(solid = nextByKey(world,solid,"solid")) {
+			while( (solid = nextByKey(world,solid,"solid")) ) {
 				KVNode* side = NULL;
-				while(side = nextByKey(solid,side,"side")) {
+				while( (side = nextByKey(solid,side,"side")) ) {
 					if(hasProperty(side,"material","TOOLS/TOOLSSKIP")) {
 						count++;
 					}
@@ -113,9 +113,9 @@ int main(int argc, char* argv[]) {
 				float maxy=FLT_MIN;
 				//We're going to go through and parse all the points into a nice big array.
 				solid = NULL;
-				while(solid = nextByKey(world,solid,"solid")) {
+				while( (solid = nextByKey(world,solid,"solid")) ) {
 					KVNode* side = NULL;
-					while(side = nextByKey(solid,side,"side")) {
+					while( (side = nextByKey(solid,side,"side")) ) {
 						if(hasProperty(side,"material","TOOLS/TOOLSSKIP")) {
 							const unsigned char* val = getValue(side,"plane");
 							if(val==NULL) //Really shouldn't happen
@@ -268,7 +268,7 @@ int main(int argc, char* argv[]) {
 						}
 						const unsigned char* test = NULL;
 						newer->flags = 0;
-						if(test = getValue(vmfoverlays[bestone],"hideOnLV")) {
+						if( (test = getValue(vmfoverlays[bestone],"hideOnLV")) ) {
 							if(strcmp((const char*)test,"0")!=0) {
 								newer->flags |= OVERLAY_FLAG_HIDE_IN_LOW_VIOLENCE;
 							}

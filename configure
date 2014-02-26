@@ -1,0 +1,32 @@
+#!/bin/bash
+
+usecc=gcc
+if [ $# -gt 0 ]; then
+	case "$1" in 
+		linux) usecc=gcc
+			;;
+		mingw32) usecc=i686-w64-mingw32-gcc
+			;;
+		mingw64) usecc=x86_64-w64-mingw32-gcc
+			;;
+	esac
+fi
+echo -n 'CC=' > Makefile
+echo $usecc >> Makefile
+echo 'CFLAGS=-std=c99 -c -Wall
+LDFLAGS=-lm
+SOURCES=UpVersion/UpVersion.c UpVersion/vmflib.c
+OBJECTS=$(SOURCES:.c=.o)
+EXECUTABLE=upversion
+
+
+all: $(SOURCES) $(EXECUTABLE)
+
+$(EXECUTABLE) : $(OBJECTS)
+	$(CC) $(LDFLAGS) $(OBJECTS) -o $@
+
+.c.o:
+	$(CC) $(CFLAGS) $< -o $@
+clean:
+	rm -f *.o UpVersion/*.o upversion
+' >> Makefile
