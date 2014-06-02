@@ -231,6 +231,18 @@ int main(int argc, char* argv[]) {
 				}
 				free(pbm);
 				free(blocks);
+
+				// Run GNVTool from the current directory
+				char gnvtool[200];
+				char gnv[40];
+				strcpy(gnv, argv[1]);
+				gnv[strlen(gnv) - 3] = 'g';
+				gnv[strlen(gnv) - 2] = 'n';
+				gnv[strlen(gnv) - 1] = 'v';
+				sprintf(gnvtool, "GNVTool.exe tognv %s %s %d %d", argv[3], gnv, cellminx, cellminy);
+				printf("Running GNVTool:\n%s\n", gnvtool);
+				system(gnvtool);
+
 			}
 		}
 	}
