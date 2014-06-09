@@ -225,7 +225,7 @@ int main(int argc, char* argv[]) {
 					fprintf(pbmfile,"\n");
 				}
 				fclose(pbmfile);
-				for (unsigned int i = 0; i < height; i++)
+				for (unsigned int i = 0; i < width; i++)
 				{
 					free(pbm[i]);
 				}
