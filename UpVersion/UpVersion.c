@@ -1,5 +1,31 @@
 #include"UpVersion.h"
 
+typedef struct
+{
+	int x, y;
+} Point;
+
+typedef struct
+{
+	Point p1,p2;
+} Rect;
+
+Rect rect_new(float x1, float y1, float x2, float y2)
+{
+	Point p1 = { (int)floorf(x1/64), (int)floorf(y1/64) };
+	Point p2 = { (int)floorf(x2/64), (int)floorf(y2/64) };
+	Rect rect = { p1, p2 };
+	return rect;
+}
+
+Point point_new(int x, int y)
+{
+	Point a;
+	a.x = x;
+	a.y = y;
+	return a;
+}
+
 unsigned long load_file(unsigned char** buf, const char* fname, const char* opts, const char* errmsg) {
 	FILE* file;
 	file = fopen(fname,opts);
@@ -103,8 +129,7 @@ int main(int argc, char* argv[]) {
 			if(count == 0) {
 				printf("No TOOLSSKIP surfaces found, skipping pbm generation\n");
 			} else {
-				// 3 points per surface
-				vector* points = (vector*)malloc(count*3*sizeof(vector));
+				Rect* blocks = (Rect*)malloc((count/6)*sizeof(Rect));
 				unsigned int pi = 0;
 				//Now for the parsing pass
 				float minx=FLT_MAX;
@@ -115,34 +140,45 @@ int main(int argc, char* argv[]) {
 				solid = NULL;
 				while( (solid = nextByKey(world,solid,"solid")) ) {
 					KVNode* side = NULL;
-					while( (side = nextByKey(solid,side,"side")) ) {
-						if(hasProperty(side,"material","TOOLS/TOOLSSKIP")) {
-							const unsigned char* val = getValue(side,"plane");
-							if(val==NULL) //Really shouldn't happen
+					
+					if (side = nextByKey(solid, side, "side")) {
+						//We only need to check the first side, since it's always to top one.
+						//TODO: Check if this still applies to brushes that are rotated around x or y axis? (Who would do that anyway)
+						if (hasProperty(side, "material", "TOOLS/TOOLSSKIP")) {
+							const unsigned char* val = getValue(side, "plane");
+							if (val == NULL) { //Really shouldn't happen
 								continue;
-							float a,b,c,d,e,f,g,h,i;
-							sscanf((const char*)val," ( %f %f %f ) ( %f %f %f ) ( %f %f %f ) ",&a,&b,&c,&d,&e,&f,&g,&h,&i);
-							if(a < minx) minx = a;
-							if(a > maxx) maxx = a;
-							if(b < miny) miny = b;
-							if(b > maxy) maxy = b;
-							points[pi  ].x = a;
-							points[pi  ].y = b;
-							points[pi++].z = c;
-							if(d < minx) minx = d;
-							if(d > maxx) maxx = d;
-							if(e < miny) miny = e;
-							if(e > maxy) maxy = e;
-							points[pi  ].x = d;
-							points[pi  ].y = e;
-							points[pi++].z = f;
-							if(g < minx) minx = g;
-							if(g > maxx) maxx = g;
-							if(h < miny) miny = h;
-							if(h > maxy) maxy = h;
-							points[pi  ].x = g;
-							points[pi  ].y = h;
-							points[pi++].z = i;
+							}
+							float a, b, c, d, e, f, g, h, i;
+							sscanf((const char*)val, " ( %f %f %f ) ( %f %f %f ) ( %f %f %f ) ", &a, &b, &c, &d, &e, &f, &g, &h, &i);
+							
+							// We only need the two corners to fill the whole block
+							// take smallest x-value of all 3 points (comparing a,d,g)
+							float topleftx = (a < d) ? ((a < g) ? a : g) : ((d < g) ? d : g);
+							// largest y-value (b,e,h)
+							float toplefty = (b > e) ? ((b > h) ? b : h) : ((e > h) ? e : h);
+
+							// largest x
+							float botrightx = (a > d) ? ((a > g) ? a : g) : ((d > g) ? d : g);
+							// smallest y
+							float botrighty = (b < e) ? ((b < h) ? b : h) : ((e < h) ? e : h);
+
+							Rect rect = rect_new(topleftx, toplefty, botrightx, botrighty);
+							blocks[pi] = rect;
+							pi++;
+							
+							if (a < minx) minx = a;
+							if (a > maxx) maxx = a;
+							if (b < miny) miny = b;
+							if (b > maxy) maxy = b;
+							if (d < minx) minx = d;
+							if (d > maxx) maxx = d;
+							if (e < miny) miny = e;
+							if (e > maxy) maxy = e;
+							if (g < minx) minx = g;
+							if (g > maxx) maxx = g;
+							if (h < miny) miny = h;
+							if (h > maxy) maxy = h;
 						}
 					}
 				}
@@ -151,8 +187,8 @@ int main(int argc, char* argv[]) {
 				int cellminx = (int)floorf(minx/64);
 				int cellmaxy = (int)floorf(maxy/64);
 				int cellminy = (int)floorf(miny/64);
-				int width = cellmaxx-cellminx+1;
-				int height = cellmaxy-cellminy+1;
+				int width = cellmaxx-cellminx;
+				int height = cellmaxy-cellminy;
 				printf("PBM Info:\n");
 				printf("%i %i %i %i %i %i\n",cellminx, cellmaxx, cellminy, cellmaxy, width, height);
 				FILE* pbmfile;
@@ -163,20 +199,50 @@ int main(int argc, char* argv[]) {
 				}
 				fprintf(pbmfile,"P1\n");
 				fprintf(pbmfile,"%i %i\n",width,height);
-				bool *pbm = (bool*)malloc(height*width*sizeof(bool));
-				memset(pbm,0,height*width*sizeof(bool));
-				for(unsigned int i=0;i<count*3;i++) {
-					pbm[(((int)floorf(points[i].x/64))-cellminx)+(cellmaxy - (int)floorf(points[i].y/64))*width] = true;
+
+				bool** pbm = (bool**)malloc(width*sizeof(bool*));
+				for (int i = 0; i < width; i++)
+				{
+					pbm[i] = (bool*)malloc(height*sizeof(bool));
+					memset(pbm[i], 0, height*sizeof(bool));
+				}
+
+				for (unsigned int i = 0; i < (count/6); i++){
+					Rect rect = blocks[i];
+					for (int x = rect.p1.x; x < rect.p2.x; x++) {
+						for (int y = rect.p1.y; y > rect.p2.y; y--)
+						{
+							int rx = x - cellminx;
+							int ry = cellmaxy - y;
+							pbm[rx][ry] = true;
+						}
+					}
 				}
 				for(int h=0;h<height;h++) {
 					for(int w=0;w<width;w++) {
-						fprintf(pbmfile,"%c ",(pbm[w+h*width])?'1':'0');
+						fprintf(pbmfile,"%c ",(pbm[w][h])?'1':'0');
 					}
 					fprintf(pbmfile,"\n");
 				}
 				fclose(pbmfile);
+				for (unsigned int i = 0; i < width; i++)
+				{
+					free(pbm[i]);
+				}
 				free(pbm);
-				free(points);
+				free(blocks);
+
+				// Run GNVTool from the current directory
+				char gnvtool[200];
+				char gnv[40];
+				strcpy(gnv, argv[1]);
+				gnv[strlen(gnv) - 3] = 'g';
+				gnv[strlen(gnv) - 2] = 'n';
+				gnv[strlen(gnv) - 1] = 'v';
+				sprintf(gnvtool, "GNVTool.exe tognv %s %s %d %d", argv[3], gnv, cellminx, cellminy);
+				printf("Running GNVTool:\n%s\n", gnvtool);
+				system(gnvtool);
+
 			}
 		}
 	}
