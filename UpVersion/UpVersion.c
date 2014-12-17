@@ -44,9 +44,9 @@ unsigned long load_file(unsigned char** buf, const char* fname, const char* opts
 }
 
 int main(int argc, char* argv[]) {
-	printf("UpVersion 1.5, by Penguinwizzard\n");
-	if(argc <2) {
-		printf("usage: UpVersion <bspfile> [<vmffile>] [<pbmoutput>]\n");
+	printf("UpVersion 1.6\nby Penguinwizzard, with contributions from ssypi\n");
+	if(argc <2 || argc > 5) {
+		printf("usage: UpVersion <bspfile> [<vmffile> [<pbmoutput> [<gnvoutput>.gnv]]]\n");
 		return 0;
 	}
 
@@ -232,16 +232,15 @@ int main(int argc, char* argv[]) {
 				free(pbm);
 				free(blocks);
 
-				// Run GNVTool from the current directory
-				char gnvtool[200];
-				char gnv[40];
-				strcpy(gnv, argv[1]);
-				gnv[strlen(gnv) - 3] = 'g';
-				gnv[strlen(gnv) - 2] = 'n';
-				gnv[strlen(gnv) - 1] = 'v';
-				sprintf(gnvtool, "GNVTool.exe tognv %s %s %d %d", argv[3], gnv, cellminx, cellminy);
-				printf("Running GNVTool:\n%s\n", gnvtool);
-				system(gnvtool);
+				// If requested, go through and generate the gnv
+				if(argc > 4)
+				{
+					// Run GNVTool from the current directory
+					char gnvtool[200];
+					sprintf(gnvtool, "GNVTool.exe tognv %s %s %d %d", argv[3], argv[4], cellminx, cellminy);
+					printf("Running GNVTool:\n%s\n", gnvtool);
+					system(gnvtool);
+				}
 
 			}
 		}
